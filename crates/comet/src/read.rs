@@ -1,15 +1,36 @@
 use ciborium_ll::{Decoder, Header};
 use rustfft::num_complex::Complex64;
 
-pub fn read_float_array<R: std::io::Read>(decoder: &mut Decoder<R>, len: usize) -> Vec<f64> {
+pub fn read_float_array<R: std::io::Read>(
+    decoder: &mut Decoder<R>,
+    len: usize,
+) -> Result<Vec<f64>, String> {
     let mut values = Vec::<f64>::with_capacity(len);
     for _ in 0..len {
         match decoder.pull().unwrap() {
             Header::Float(x) => values.push(x),
-            _ => panic!("oof"),
+            header => return Err(format!("array element {:?} is not a float", header)),
         }
     }
-    values
+    Ok(values)
+}
+
+pub fn read_float_array_2d<R: std::io::Read>(
+    decoder: &mut Decoder<R>,
+    len: usize,
+) -> Result<Vec<Vec<f64>>, String> {
+    let mut values = Vec::with_capacity(len);
+
+    for _ in 0..len {
+        match decoder.pull().unwrap() {
+            Header::Array(Some(inner_len)) => {
+                values.push(read_float_array(decoder, inner_len)?);
+            }
+            header => return Err(format!("array element {:?} is not an array", header)),
+        }
+    }
+
+    Ok(values)
 }
 
 pub fn read_complex_array<R: std::io::Read>(

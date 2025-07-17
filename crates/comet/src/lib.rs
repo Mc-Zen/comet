@@ -17,22 +17,22 @@ pub fn contour(input: &[u8]) -> Result<Vec<u8>, String> {
             }
 
             let x = match decoder.pull().unwrap() {
-                Header::Array(Some(len)) => read::read_float_array(&mut decoder, len),
+                Header::Array(Some(len)) => read::read_float_array(&mut decoder, len)?,
                 _ => return Err(String::from("Bad input")),
             };
 
             let y = match decoder.pull().unwrap() {
-                Header::Array(Some(len)) => read::read_float_array(&mut decoder, len),
+                Header::Array(Some(len)) => read::read_float_array(&mut decoder, len)?,
                 _ => return Err(String::from("Bad input")),
             };
 
             let z = match decoder.pull().unwrap() {
-                Header::Array(Some(len)) => read::read_float_array(&mut decoder, len),
+                Header::Array(Some(len)) => read::read_float_array(&mut decoder, len)?,
                 _ => return Err(String::from("Bad input")),
             };
 
             let levels = match decoder.pull().unwrap() {
-                Header::Array(Some(len)) => read::read_float_array(&mut decoder, len),
+                Header::Array(Some(len)) => read::read_float_array(&mut decoder, len)?,
                 _ => return Err(String::from("Bad input")),
             };
 
@@ -77,12 +77,12 @@ pub fn histogram(input: &[u8]) -> Result<Vec<u8>, String> {
             }
 
             let values = match decoder.pull().unwrap() {
-                Header::Array(Some(len)) => read::read_float_array(&mut decoder, len),
+                Header::Array(Some(len)) => read::read_float_array(&mut decoder, len)?,
                 _ => return Err(String::from("Bad input")),
             };
 
             let edges = match decoder.pull().unwrap() {
-                Header::Array(Some(len)) => read::read_float_array(&mut decoder, len),
+                Header::Array(Some(len)) => read::read_float_array(&mut decoder, len)?,
                 Header::Positive(num_bins) => {
                     let min = values.iter().fold(f64::INFINITY, |a, &b| a.min(b));
                     let max = values.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
@@ -129,7 +129,7 @@ pub fn boxplot(input: &[u8]) -> Result<Vec<u8>, String> {
             }
 
             let values = match decoder.pull().unwrap() {
-                Header::Array(Some(len)) => read::read_float_array(&mut decoder, len),
+                Header::Array(Some(len)) => read::read_float_array(&mut decoder, len)?,
                 _ => return Err(String::from("Bad input")),
             };
 
@@ -257,4 +257,36 @@ fn fft(input: &[u8]) -> Result<Vec<u8>, String> {
 #[wasm_func]
 fn ifft(input: &[u8]) -> Result<Vec<u8>, String> {
     fft_impl(input, FftDirection::Inverse)
+}
+
+#[wasm_func]
+pub fn thomas_algorithm(a: &[u8], b: &[u8]) -> Result<Vec<u8>, String> {
+    let mut decoder_a = Decoder::from(a);
+    let mut decoder_b = Decoder::from(b);
+
+    let a = match decoder_a.pull().unwrap() {
+        Header::Array(Some(len)) => read::read_float_array_2d(&mut decoder_a, len)?,
+        _ => return Err(String::from("input is not an array".to_string())),
+    };
+    let a = a.iter().map(|r| r.as_slice()).collect::<Vec<&[f64]>>();
+
+    let b = match decoder_b.pull().unwrap() {
+        Header::Array(Some(len)) => read::read_float_array(&mut decoder_b, len)?,
+        _ => return Err(String::from("input is not an array".to_string())),
+    };
+
+    let x = comet_algorithms::thomas_algorithm(&a, &b);
+
+    let mut output = Vec::new();
+    let mut encoder = Encoder::from(&mut output);
+
+    encoder.push(Header::Array(Some(x.len()))).unwrap();
+
+    for value in x {
+        encoder.push(Header::Float(value)).unwrap();
+    }
+
+    encoder.flush().unwrap();
+
+    Ok(output)
 }
